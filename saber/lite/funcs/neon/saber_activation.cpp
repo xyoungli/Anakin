@@ -75,6 +75,21 @@ SaberStatus SaberActivation::dispatch(const std::vector<Tensor<CPU, AK_FLOAT> *>
                 float* ptr_out_thread = ptr_out + i * nums_per_thread;
                 int cnt = neon_loop_cnt;
 #ifdef __aarch64__
+                for(int num=0;num<neon_loop_cnt;num++){
+                    float32x4_t vr0 = vld1q_f32(ptr_in_thread);
+                    float32x4_t vr1 = vld1q_f32(ptr_in_thread);
+                    float32x4_t vr2 = vld1q_f32(ptr_in_thread);
+                    float32x4_t vr3 = vld1q_f32(ptr_in_thread);
+                    vr0=vmaxq_f32(vr0,vzero);
+                    vr1=vmaxq_f32(vr1,vzero);
+                    vr2=vmaxq_f32(vr2,vzero);
+                    vr3=vmaxq_f32(vr3,vzero);
+                    vst1q_f32(ptr_out_thread,vr0);
+                    vst1q_f32(ptr_out_thread,vr1);
+                    vst1q_f32(ptr_out_thread,vr2);
+                    vst1q_f32(ptr_out_thread,vr3);
+                }
+                
 #else
                 asm volatile (
                 "1:                                     @ loop header\n"
@@ -109,6 +124,13 @@ SaberStatus SaberActivation::dispatch(const std::vector<Tensor<CPU, AK_FLOAT> *>
                     ptr_in_thread++;
                     ptr_out_thread++;
                 }
+            }
+            ptr_out = ptr_out+threads * nums_per_thread;
+            ptr_in = ptr_in+threads * nums_per_thread;
+            for (int j = 0; j < remain; ++j) {
+                ptr_out[0] = ptr_in[0] > 0.f? ptr_in[0] : 0.f;
+                ptr_in++;
+                ptr_out++;
             }
             return SaberSuccess;
         case Active_sigmoid:
