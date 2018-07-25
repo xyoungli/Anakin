@@ -18,6 +18,16 @@ void activation_basic(TensorHf4& tin,ActiveType active_type,TensorHf4& tout) {
                 tout.mutable_data()[i] = (tin.data()[i] >= 0) ? tin.data()[i] : 0;
             }
             break;
+        case Active_tanh:
+            for (int i = 0; i < tin.size(); ++i) {
+                tout.mutable_data()[i] = (exp(tin.data()[i])-exp(-tin.data()[i]))/(exp(tin.data()[i])+exp(-tin.data()[i]));
+            }
+            break;
+        case Active_sigmoid:
+            for (int i = 0; i < tin.size(); ++i) {
+                tout.mutable_data()[i] = 1/(1+exp(-tin.data()[i]));
+            }
+            break;
         default:
             LOG(ERROR)<<"error activation type!";
             break;
@@ -38,12 +48,12 @@ TEST(TestSaberLite, test_func_activation_arm) {
 #endif
     }
 
-    int test_iter = 1;
+    int test_iter = 10;
 
-    int w_in = 1;
+    int w_in = 5;
     int h_in = 5;
-    int ch_in = 1232;
-    int num_in = 2;
+    int ch_in = 5;
+    int num_in = 5;
 
     Shape shape_in(num_in, ch_in, h_in, w_in);
     Shape shape_out = shape_in;
@@ -55,13 +65,13 @@ TEST(TestSaberLite, test_func_activation_arm) {
     std::vector<TensorHf4*> vout;
 
     Tensor<CPU, AK_FLOAT> thin(shape_in);
-    fill_tensor_rand(thin, -1.f, 0.f);
+    fill_tensor_rand(thin, -1.f, 1.f);
     TensorHf4 tout;
     TensorHf4 tout_basic(shape_out);
     vin.push_back(&thin);
 
 #if COMPARE_RESULT
-    activation_basic(thin, Active_relu, tout_basic);
+    activation_basic(thin, active_type, tout_basic);
     //print_tensor_host(tout_basic);
 #endif
     
@@ -102,7 +112,7 @@ TEST(TestSaberLite, test_func_activation_arm) {
 #if COMPARE_RESULT
     double max_ratio = 0;
     double max_diff = 0;
-
+  
     tensor_cmp_host(tout_basic.data(), tout.data(), tout_basic.valid_size(), max_ratio, max_diff);
     LOG(INFO) << "compare result, max diff: " << max_diff << ", max ratio: " << max_ratio;
     CHECK_EQ(fabsf(max_ratio) < 1e-5f, true) << "compute result error";
@@ -120,7 +130,20 @@ int main(int argc, const char** argv){
     if (argc >= 3) {
         threads = atoi(argv[2]);
     }
-
+    if (argc ==4 ) {
+        LOG(INFO)<<argv[3];
+        if(strcmp(argv[3],"relu")==0)
+            active_type= Active_relu;
+        else if(strcmp(argv[3],"tanh")==0)
+            active_type= Active_tanh;
+        else if(strcmp(argv[3],"sigmoid")==0)
+            active_type= Active_sigmoid;
+        else
+            active_type=Active_unknow;
+    }
+    if (argc> 4 || argc < 2){
+        LOG(ERROR)<<"please use "<<argv[0]<<"[cluster] [threads] [active_type]";
+    }
     InitTest();
     RUN_ALL_TESTS(argv[0]);
     return 0;
